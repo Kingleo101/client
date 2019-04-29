@@ -111,14 +111,19 @@ func (l *TeamLoader) Load(ctx context.Context, lArg keybase1.LoadTeamArg) (res *
 	return l.load1(ctx, me, lArg)
 }
 
-func (l *TeamLoader) Delete(ctx context.Context, teamID keybase1.TeamID) (err error) {
-	defer l.G().CTraceTimed(ctx, fmt.Sprintf("TeamLoader#Delete(%v)", teamID), func() error { return err })()
-
-	// Single-flight lock by team ID.
+func (l *TeamLoader) Freeze(ctx context.Context, teamID keybase1.TeamID) (err error) {
+	defer l.G().CTraceTimed(ctx, fmt.Sprintf("TeamLoader#Freeze(%s)", teamID), func() error { return err })()
 	lock := l.locktab.AcquireOnName(ctx, l.G(), teamID.String())
 	defer lock.Release(ctx)
-
-	return l.storage.Delete(libkb.NewMetaContext(ctx, l.G()), teamID, teamID.IsPublic())
+	mctx := libkb.NewMetaContext(ctx, l.G())
+	td, frozen := l.storage.Get(mctx, teamID, teamID.IsPublic())
+	if frozen || td == nil {
+		return nil
+	}
+	td.Frozen = true
+	// TODO clear out bros
+	l.storage.Put(mctx, td)
+	return nil
 }
 
 func (l *TeamLoader) HintLatestSeqno(ctx context.Context, teamID keybase1.TeamID, seqno keybase1.Seqno) error {
@@ -128,7 +133,7 @@ func (l *TeamLoader) HintLatestSeqno(ctx context.Context, teamID keybase1.TeamID
 	mctx := libkb.NewMetaContext(ctx, l.G())
 
 	// Load from the cache
-	td := l.storage.Get(mctx, teamID, teamID.IsPublic())
+	td, _ := l.storage.Get(mctx, teamID, teamID.IsPublic())
 	if td == nil {
 		// Nothing to store the hint on.
 		return nil
@@ -457,10 +462,11 @@ func (l *TeamLoader) load2InnerLockedRetry(ctx context.Context, arg load2ArgT) (
 
 	// Fetch from cache
 	tracer.Stage("cache load")
+	tailCheckRet, frozen := l.storage.Get(libkb.NewMetaContext(ctx, l.G()), arg.teamID, arg.public)
 	var ret *keybase1.TeamData
-	if !arg.forceFullReload {
+	if !frozen && !arg.forceFullReload {
 		// Load from cache
-		ret = l.storage.Get(libkb.NewMetaContext(ctx, l.G()), arg.teamID, arg.public)
+		ret = tailCheckRet
 	}
 
 	if ret != nil && !ret.Chain.Reader.Eq(arg.me) {
@@ -479,7 +485,7 @@ func (l *TeamLoader) load2InnerLockedRetry(ctx context.Context, arg load2ArgT) (
 	// Determine whether to repoll merkle.
 	discardCache, repoll := l.load2DecideRepoll(ctx, arg, ret)
 	if discardCache {
-		ret = nil
+		ret = nil // TODO should we make sure that leaf is not being swapped out?
 		repoll = true
 	}
 
@@ -701,6 +707,18 @@ func (l *TeamLoader) load2InnerLockedRetry(ctx context.Context, arg load2ArgT) (
 			ret.Chain.LastLinkID, lastLinkID)
 	}
 
+	if tailCheckRet != nil {
+		// If we previously discarded cache due to forceFullReload, or left the
+		// team, froze it, and are rejoining, make sure the previous tail is
+		// still in the chain.
+		// The chain loader ensures it is part of a well-formed chain with correct prevs.
+		linkID := ret.Chain.LinkIDs[tailCheckRet.Chain.LastSeqno]
+		if !ret.Chain.LastLinkID.Eq(linkID) {
+			return nil, fmt.Errorf("got wrong sigchain link ID for seqno %d: expected %v from previous cache entry (frozen=%t); got %v in new chain", tailCheckRet.Chain.LastSeqno,
+				tailCheckRet.Chain.LastLinkID, ret.Frozen, linkID)
+		}
+	}
+
 	tracer.Stage("pco")
 	err = l.checkParentChildOperations(ctx,
 		arg.me, arg.teamID, ret.Chain.ParentID, readSubteamID, parentChildOperations, proofSet)
@@ -883,6 +901,12 @@ func (l *TeamLoader) load2DecideRepoll(ctx context.Context, arg load2ArgT, fromC
 			l.G().Log.CDebugf(ctx, "load2DecideRepoll -> (discardCache:%v, repoll:%v) %v", discardCache, repoll, reason)
 		}
 	}()
+
+	// If we previously deleted or left this team, repoll before loading it.
+	if fromCache != nil {
+		return false, true
+	}
+
 	// NeedAdmin is a special constraint where we start from scratch.
 	// Because of admin-only invite links.
 	if arg.needAdmin {

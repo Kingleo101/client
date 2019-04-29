@@ -744,7 +744,7 @@ func (t *Team) deleteRoot(ctx context.Context, ui keybase1.TeamsUiInterface) err
 	if role != keybase1.TeamRole_OWNER {
 		return libkb.AppStatusError{
 			Code: int(keybase1.StatusCode_SCTeamSelfNotOwner),
-			Name: "SELF_NOT_ONWER",
+			Name: "SELF_NOT_OWNER",
 			Desc: "You must be an owner to delete a team",
 		}
 	}

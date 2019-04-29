@@ -51,8 +51,8 @@ func (n nullTeamLoader) Load(context.Context, keybase1.LoadTeamArg) (*keybase1.T
 	return nil, fmt.Errorf("null team loader")
 }
 
-func (n nullTeamLoader) Delete(context.Context, keybase1.TeamID) error {
-	return nil
+func (n nullTeamLoader) Freeze(context.Context, keybase1.TeamID) error {
+	return fmt.Errorf("null team loader")
 }
 
 func (n *nullTeamLoader) HintLatestSeqno(ctx context.Context, id keybase1.TeamID, seqno keybase1.Seqno) error {

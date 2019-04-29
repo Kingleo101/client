@@ -278,7 +278,7 @@ func HandleDeleteNotification(ctx context.Context, g *libkb.GlobalContext, rows 
 
 	for _, row := range rows {
 		g.Log.CDebugf(ctx, "team.HandleDeleteNotification: (%+v)", row)
-		err := g.GetTeamLoader().Delete(ctx, row.Id)
+		err := g.GetTeamLoader().Freeze(ctx, row.Id)
 		if err != nil {
 			g.Log.CDebugf(ctx, "team.HandleDeleteNotification: error deleting team cache: %v", err)
 		}
@@ -298,7 +298,7 @@ func HandleExitNotification(ctx context.Context, g *libkb.GlobalContext, rows []
 
 	for _, row := range rows {
 		mctx.Debug("team.HandleExitNotification: (%+v)", row)
-		if err := mctx.G().GetTeamLoader().Delete(ctx, row.Id); err != nil {
+		if err := mctx.G().GetTeamLoader().Freeze(ctx, row.Id); err != nil {
 			mctx.Debug("team.HandleExitNotification: error deleting team cache: %v", err)
 		}
 		if ekLib := mctx.G().GetEKLib(); ekLib != nil {

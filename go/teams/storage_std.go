@@ -54,14 +54,17 @@ func (s *Storage) Put(mctx libkb.MetaContext, state *keybase1.TeamData) {
 }
 
 // Can return nil.
-func (s *Storage) Get(mctx libkb.MetaContext, teamID keybase1.TeamID, public bool) *keybase1.TeamData {
+func (s *Storage) Get(mctx libkb.MetaContext, teamID keybase1.TeamID, public bool) (data *keybase1.TeamData, frozen bool) {
 	vp := s.storageGeneric.get(mctx, teamID, public)
 	if vp == nil {
-		return nil
+		return nil, false
 	}
 	ret, ok := vp.(*keybase1.TeamData)
 	if !ok {
 		mctx.Debug("teams.Storage#Get cast error: %T is wrong type", vp)
 	}
-	return ret
+	if ret.Frozen {
+		mctx.Debug("returning frozen team data")
+	}
+	return ret, ret.Frozen
 }

@@ -676,8 +676,7 @@ type TeamLoader interface {
 	MapTeamAncestors(ctx context.Context, f func(t keybase1.TeamSigChainState) error, teamID keybase1.TeamID, reason string, forceFullReloadOnceToAssert func(t keybase1.TeamSigChainState) bool) error
 	NotifyTeamRename(ctx context.Context, id keybase1.TeamID, newName string) error
 	Load(context.Context, keybase1.LoadTeamArg) (*keybase1.TeamData, error)
-	// Delete the cache entry. Does not error if there is no cache entry.
-	Delete(ctx context.Context, teamID keybase1.TeamID) error
+	Freeze(ctx context.Context, teamID keybase1.TeamID) error
 	// Untrusted hint of what a team's latest seqno is
 	HintLatestSeqno(ctx context.Context, id keybase1.TeamID, seqno keybase1.Seqno) error
 	ResolveNameToIDUntrusted(ctx context.Context, teamName keybase1.TeamName, public bool, allowCache bool) (id keybase1.TeamID, err error)
