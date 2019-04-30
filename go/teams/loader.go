@@ -120,9 +120,17 @@ func (l *TeamLoader) Freeze(ctx context.Context, teamID keybase1.TeamID) (err er
 	if frozen || td == nil {
 		return nil
 	}
-	td.Frozen = true
-	// TODO clear out bros
-	l.storage.Put(mctx, td)
+	frozenChain := keybase1.TeamSigChainState{
+		Id:         td.Chain.Id,
+		Public:     td.Chain.Public,
+		LastSeqno:  td.Chain.LastSeqno,
+		LastLinkID: td.Chain.LastLinkID,
+	}
+	newTD := &keybase1.TeamData{
+		Frozen: true,
+		Chain:  frozenChain,
+	}
+	l.storage.Put(mctx, newTD)
 	return nil
 }
 
@@ -133,8 +141,8 @@ func (l *TeamLoader) HintLatestSeqno(ctx context.Context, teamID keybase1.TeamID
 	mctx := libkb.NewMetaContext(ctx, l.G())
 
 	// Load from the cache
-	td, _ := l.storage.Get(mctx, teamID, teamID.IsPublic())
-	if td == nil {
+	td, frozen := l.storage.Get(mctx, teamID, teamID.IsPublic())
+	if frozen || td == nil {
 		// Nothing to store the hint on.
 		return nil
 	}
@@ -485,7 +493,7 @@ func (l *TeamLoader) load2InnerLockedRetry(ctx context.Context, arg load2ArgT) (
 	// Determine whether to repoll merkle.
 	discardCache, repoll := l.load2DecideRepoll(ctx, arg, ret)
 	if discardCache {
-		ret = nil // TODO should we make sure that leaf is not being swapped out?
+		ret = nil
 		repoll = true
 	}
 
@@ -901,11 +909,6 @@ func (l *TeamLoader) load2DecideRepoll(ctx context.Context, arg load2ArgT, fromC
 			l.G().Log.CDebugf(ctx, "load2DecideRepoll -> (discardCache:%v, repoll:%v) %v", discardCache, repoll, reason)
 		}
 	}()
-
-	// If we previously deleted or left this team, repoll before loading it.
-	if fromCache != nil {
-		return false, true
-	}
 
 	// NeedAdmin is a special constraint where we start from scratch.
 	// Because of admin-only invite links.
