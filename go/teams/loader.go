@@ -721,7 +721,7 @@ func (l *TeamLoader) load2InnerLockedRetry(ctx context.Context, arg load2ArgT) (
 		// still in the chain.
 		// The chain loader ensures it is part of a well-formed chain with correct prevs.
 		linkID := ret.Chain.LinkIDs[tailCheckRet.Chain.LastSeqno]
-		if !ret.Chain.LastLinkID.Eq(linkID) {
+		if !linkID.Eq(tailCheckRet.Chain.LastLinkID) {
 			return nil, fmt.Errorf("got wrong sigchain link ID for seqno %d: expected %v from previous cache entry (frozen=%t); got %v in new chain", tailCheckRet.Chain.LastSeqno,
 				tailCheckRet.Chain.LastLinkID, ret.Frozen, linkID)
 		}
@@ -909,7 +909,6 @@ func (l *TeamLoader) load2DecideRepoll(ctx context.Context, arg load2ArgT, fromC
 			l.G().Log.CDebugf(ctx, "load2DecideRepoll -> (discardCache:%v, repoll:%v) %v", discardCache, repoll, reason)
 		}
 	}()
-
 	// NeedAdmin is a special constraint where we start from scratch.
 	// Because of admin-only invite links.
 	if arg.needAdmin {
