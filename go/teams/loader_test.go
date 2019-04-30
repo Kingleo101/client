@@ -68,7 +68,8 @@ func TestLoaderStaleNoUpdates(t *testing.T) {
 	t.Logf("make the cache look old")
 	st := getStorageFromG(tc.G)
 	mctx := libkb.NewMetaContextForTest(tc)
-	team = st.Get(mctx, teamID, public)
+	team, frozen := st.Get(mctx, teamID, public)
+	require.False(t, frozen)
 	require.NotNil(t, team)
 	t.Logf("cache  pre-set cachedAt:%v", team.CachedAt.Time())
 	team.CachedAt = keybase1.ToTime(tc.G.Clock().Now().Add(freshnessLimit * -2))
@@ -834,7 +835,8 @@ func TestInflateAfterPermissionsChange(t *testing.T) {
 
 	t.Logf("check that the link is stubbed in storage")
 	mctx := libkb.NewMetaContextForTest(*tcs[2])
-	rootData := tcs[2].G.GetTeamLoader().(*TeamLoader).storage.Get(mctx, rootID, rootID.IsPublic())
+	rootData, frozen := tcs[2].G.GetTeamLoader().(*TeamLoader).storage.Get(mctx, rootID, rootID.IsPublic())
+	require.False(t, frozen)
 	require.NotNil(t, rootData, "root team should be cached")
 	require.True(t, (TeamSigChainState{rootData.Chain}).HasAnyStubbedLinks(), "root team should have a stubbed link")
 
@@ -1147,4 +1149,64 @@ func randomTlfID(t *testing.T) keybase1.TLFID {
 	idBytes, err := libkb.RandBytesWithSuffix(16, suffix)
 	require.NoError(t, err)
 	return keybase1.TLFID(hex.EncodeToString(idBytes))
+}
+
+type freezeF = func(*libkb.TestContext, *kbtest.FakeUser, keybase1.TeamID, keybase1.TeamName, *libkb.TestContext) error
+
+func freezeTest(t *testing.T, freezeAction freezeF, unfreezeAction freezeF) {
+	fus, tcs, cleanup := setupNTests(t, 2)
+	defer cleanup()
+
+	rootName, rootID := createTeam2(*tcs[0])
+
+	_, err := AddMember(context.Background(), tcs[0].G, rootName.String(), fus[1].Username, keybase1.TeamRole_OWNER)
+	require.NoError(t, err)
+
+	err = freezeAction(tcs[0], fus[0], rootID, rootName, tcs[1])
+	require.NoError(t, err)
+
+	st := getStorageFromG(tcs[0].G)
+	mctx := libkb.NewMetaContextForTest(*tcs[0])
+
+	td, frozen := st.Get(mctx, rootID, rootID.IsPublic())
+	require.True(t, frozen)
+	require.NotNil(t, td)
+	require.Nil(t, td.ReaderKeyMasks)
+	require.NotNil(t, td.Chain)
+	require.NotNil(t, td.Chain.LastSeqno)
+	require.NotNil(t, td.Chain.LastLinkID)
+	require.Nil(t, td.Chain.UserLog)
+	require.Nil(t, td.Chain.PerTeamKeys)
+
+	err = unfreezeAction(tcs[0], fus[0], rootID, rootName, tcs[1])
+	require.NoError(t, err)
+
+	_, err = tcs[0].G.GetTeamLoader().Load(context.TODO(), keybase1.LoadTeamArg{
+		ID:     rootID,
+		Public: rootID.IsPublic(),
+	})
+	require.NoError(t, err)
+
+	td, frozen = st.Get(mctx, rootID, rootID.IsPublic())
+	require.NotNil(t, td)
+	require.NotNil(t, td.ReaderKeyMasks)
+	require.NotNil(t, td.Chain.UserLog)
+	require.NotNil(t, td.Chain.PerTeamKeys)
+}
+
+func TestFreezeBasic(t *testing.T) {
+	freezeTest(t, func(tc *libkb.TestContext, fu *kbtest.FakeUser, teamID keybase1.TeamID, _ keybase1.TeamName, _ *libkb.TestContext) error {
+		return tc.G.GetTeamLoader().Freeze(context.TODO(), teamID)
+	}, func(tc *libkb.TestContext, fu *kbtest.FakeUser, teamID keybase1.TeamID, _ keybase1.TeamName, _ *libkb.TestContext) error {
+		return nil
+	})
+}
+
+func TestFreezeViaLeave(t *testing.T) {
+	freezeTest(t, func(tc *libkb.TestContext, fu *kbtest.FakeUser, teamID keybase1.TeamID, teamName keybase1.TeamName, _ *libkb.TestContext) error {
+		return Leave(context.TODO(), tc.G, teamName.String(), false)
+	}, func(tc *libkb.TestContext, fu *kbtest.FakeUser, teamID keybase1.TeamID, teamName keybase1.TeamName, otherTc *libkb.TestContext) error {
+		_, err := AddMember(context.TODO(), otherTc.G, teamName.String(), fu.Username, keybase1.TeamRole_READER)
+		return err
+	})
 }
