@@ -66,5 +66,5 @@ func (s *Storage) Get(mctx libkb.MetaContext, teamID keybase1.TeamID, public boo
 	if ret.Frozen {
 		mctx.Debug("returning frozen team data")
 	}
-	return ret, ret.Frozen
+	return ret, false
 }
