@@ -64,7 +64,7 @@ func (s *FTLStorage) Get(mctx libkb.MetaContext, teamID keybase1.TeamID, public 
 		mctx.Debug("returning frozen fast team data")
 	}
 	if ret.Tombstoned {
-		mctx.Debug("returning frozen fast team data")
+		mctx.Debug("returning tombstoned fast team data")
 	}
 	return ret, ret.Frozen, ret.Tombstoned
 }
