@@ -1151,6 +1151,11 @@ func randomTlfID(t *testing.T) keybase1.TLFID {
 	return keybase1.TLFID(hex.EncodeToString(idBytes))
 }
 
+func getFastStorageFromG(g *libkb.GlobalContext) *FTLStorage {
+	tl := g.GetFastTeamLoader().(*FastTeamChainLoader)
+	return tl.storage
+}
+
 type freezeF = func(*libkb.TestContext, *kbtest.FakeUser, keybase1.TeamID, keybase1.TeamName, *libkb.TestContext) error
 
 func freezeTest(t *testing.T, freezeAction freezeF, unfreezeAction freezeF) {
@@ -1162,26 +1167,51 @@ func freezeTest(t *testing.T, freezeAction freezeF, unfreezeAction freezeF) {
 	_, err := AddMember(context.Background(), tcs[0].G, rootName.String(), fus[1].Username, keybase1.TeamRole_OWNER)
 	require.NoError(t, err)
 
+	// Explicitly load in FTL since AddMember doesn't do it
+	mctx := libkb.NewMetaContextForTest(*tcs[0])
+	_, err = tcs[0].G.GetFastTeamLoader().Load(mctx, keybase1.FastTeamLoadArg{
+		ID:     rootID,
+		Public: rootID.IsPublic(),
+	})
+	require.NoError(t, err)
+
 	err = freezeAction(tcs[0], fus[0], rootID, rootName, tcs[1])
 	require.NoError(t, err)
 
 	st := getStorageFromG(tcs[0].G)
-	mctx := libkb.NewMetaContextForTest(*tcs[0])
-
 	td, frozen := st.Get(mctx, rootID, rootID.IsPublic())
-	require.True(t, frozen)
 	require.NotNil(t, td)
+	require.True(t, frozen)
 	require.Nil(t, td.ReaderKeyMasks)
 	require.NotNil(t, td.Chain)
 	require.NotNil(t, td.Chain.LastSeqno)
 	require.NotNil(t, td.Chain.LastLinkID)
 	require.Nil(t, td.Chain.UserLog)
 	require.Nil(t, td.Chain.PerTeamKeys)
+	fastS := getFastStorageFromG(tcs[0].G)
+	ftd, frozen := fastS.Get(mctx, rootID, rootID.IsPublic())
+	spew.Dump(ftd)
+	require.NotNil(t, ftd)
+	require.True(t, frozen)
+	require.NotNil(t, ftd.Chain)
+	require.Nil(t, ftd.ReaderKeyMasks)
+	require.Nil(t, ftd.Chain.PerTeamKeys)
+	require.NotNil(t, ftd.Chain.ID)
+	require.NotNil(t, ftd.Chain.Public)
+	require.NotNil(t, ftd.Chain.Last)
+	require.NotNil(t, ftd.Chain.Last.Seqno)
+	require.NotNil(t, ftd.Chain.Last.LinkID)
 
 	err = unfreezeAction(tcs[0], fus[0], rootID, rootName, tcs[1])
 	require.NoError(t, err)
 
+	// Load chains again, forcing repoll
 	_, err = tcs[0].G.GetTeamLoader().Load(context.TODO(), keybase1.LoadTeamArg{
+		ID:     rootID,
+		Public: rootID.IsPublic(),
+	})
+	require.NoError(t, err)
+	_, err = tcs[0].G.GetFastTeamLoader().Load(mctx, keybase1.FastTeamLoadArg{
 		ID:     rootID,
 		Public: rootID.IsPublic(),
 	})
@@ -1192,11 +1222,23 @@ func freezeTest(t *testing.T, freezeAction freezeF, unfreezeAction freezeF) {
 	require.NotNil(t, td.ReaderKeyMasks)
 	require.NotNil(t, td.Chain.UserLog)
 	require.NotNil(t, td.Chain.PerTeamKeys)
+	ftd, frozen = fastS.Get(mctx, rootID, rootID.IsPublic())
+	spew.Dump(ftd)
+	require.NotNil(t, ftd)
+	require.False(t, frozen)
+	require.NotNil(t, ftd.Chain)
+	require.NotNil(t, ftd.ReaderKeyMasks)
+	require.NotNil(t, ftd.Chain.PerTeamKeys)
+	require.NotNil(t, ftd.Chain.ID)
+	require.NotNil(t, ftd.Chain.Public)
+	require.NotNil(t, ftd.Chain.Last)
+	require.NotNil(t, ftd.Chain.Last.Seqno)
+	require.NotNil(t, ftd.Chain.Last.LinkID)
 }
 
 func TestFreezeBasic(t *testing.T) {
 	freezeTest(t, func(tc *libkb.TestContext, fu *kbtest.FakeUser, teamID keybase1.TeamID, _ keybase1.TeamName, _ *libkb.TestContext) error {
-		return tc.G.GetTeamLoader().Freeze(context.TODO(), teamID)
+		return FreezeTeam(libkb.NewMetaContextForTest(*tc), teamID)
 	}, func(tc *libkb.TestContext, fu *kbtest.FakeUser, teamID keybase1.TeamID, _ keybase1.TeamName, _ *libkb.TestContext) error {
 		return nil
 	})
