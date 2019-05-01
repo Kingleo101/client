@@ -411,7 +411,7 @@ func (f *FastTeamChainLoader) toResult(m libkb.MetaContext, arg fastLoadArg, sta
 }
 
 // findState in cache finds the team ID's state in an in-memory cache.
-func (f *FastTeamChainLoader) findStateInCache(m libkb.MetaContext, id keybase1.TeamID) (data *keybase1.FastTeamData, frozen bool) {
+func (f *FastTeamChainLoader) findStateInCache(m libkb.MetaContext, id keybase1.TeamID) (data *keybase1.FastTeamData, frozen bool, tombstoned bool) {
 	return f.storage.Get(m, id, id.IsPublic())
 }
 
@@ -1218,8 +1218,11 @@ func (f *FastTeamChainLoader) updateCache(m libkb.MetaContext, state *keybase1.F
 // this teamID.
 func (f *FastTeamChainLoader) loadLocked(m libkb.MetaContext, arg fastLoadArg) (res *fastLoadRes, err error) {
 
-	frozenState, frozen := f.findStateInCache(m, arg.ID)
+	frozenState, frozen, tombstoned := f.findStateInCache(m, arg.ID)
 	var state *keybase1.FastTeamData
+	if tombstoned {
+		return nil, fmt.Errorf("team previously tombstoned; refusing to load")
+	}
 	if !frozen {
 		state = frozenState
 	}
@@ -1287,7 +1290,7 @@ func (f *FastTeamChainLoader) HintLatestSeqno(m libkb.MetaContext, id keybase1.T
 	lock := f.locktab.AcquireOnName(m.Ctx(), m.G(), id.String())
 	defer lock.Release(m.Ctx())
 
-	if state, _ := f.findStateInCache(m, id); state != nil {
+	if state, frozen, tombstoned := f.findStateInCache(m, id); state != nil && !frozen && !tombstoned {
 		m.Debug("Found state in cache; updating")
 		state.LatestSeqnoHint = seqno
 		f.updateCache(m, state)
@@ -1325,7 +1328,7 @@ func (f *FastTeamChainLoader) Freeze(mctx libkb.MetaContext, teamID keybase1.Tea
 	lock := f.locktab.AcquireOnName(mctx.Ctx(), mctx.G(), teamID.String())
 	defer lock.Release(mctx.Ctx())
 
-	td, frozen := f.storage.Get(mctx, teamID, teamID.IsPublic())
+	td, frozen, tombstoned := f.storage.Get(mctx, teamID, teamID.IsPublic())
 	if frozen || td == nil {
 		return nil
 	}
@@ -1335,8 +1338,9 @@ func (f *FastTeamChainLoader) Freeze(mctx libkb.MetaContext, teamID keybase1.Tea
 		Last:   td.Chain.Last,
 	}
 	newTD := &keybase1.FastTeamData{
-		Frozen: true,
-		Chain:  frozenChain,
+		Frozen:     true,
+		Tombstoned: tombstoned,
+		Chain:      frozenChain,
 	}
 	f.storage.Put(mctx, newTD)
 	return nil

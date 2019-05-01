@@ -683,6 +683,10 @@ type TeamLoader interface {
 	// notifications, the server can't roll-back to a state where the team is
 	// undeleted, so we don't have to special-case team deletion.
 	Freeze(ctx context.Context, teamID keybase1.TeamID) error
+	// Tombstoning a team prevents it from being loaded ever again, as long as
+	// that cache entry exists. Used to prevent server from "undeleting" a
+	// team. While a team is tombstoned, most data is cleared.
+	Tombstone(ctx context.Context, teamID keybase1.TeamID) error
 	// Untrusted hint of what a team's latest seqno is
 	HintLatestSeqno(ctx context.Context, id keybase1.TeamID, seqno keybase1.Seqno) error
 	ResolveNameToIDUntrusted(ctx context.Context, teamName keybase1.TeamName, public bool, allowCache bool) (id keybase1.TeamID, err error)

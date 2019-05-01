@@ -403,6 +403,10 @@
         },
         {
           "type": "boolean",
+          "name": "tombstoned"
+        },
+        {
+          "type": "boolean",
           "name": "secretless"
         },
         {
@@ -462,6 +466,10 @@
         {
           "type": "boolean",
           "name": "frozen"
+        },
+        {
+          "type": "boolean",
+          "name": "tombstoned"
         },
         {
           "type": "TeamName",

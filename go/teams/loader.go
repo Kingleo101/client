@@ -111,24 +111,46 @@ func (l *TeamLoader) Load(ctx context.Context, lArg keybase1.LoadTeamArg) (res *
 	return l.load1(ctx, me, lArg)
 }
 
+func newFrozenChain(chain *keybase1.TeamSigChainState) keybase1.TeamSigChainState {
+	return keybase1.TeamSigChainState{
+		Id:         chain.Id,
+		Public:     chain.Public,
+		LastSeqno:  chain.LastSeqno,
+		LastLinkID: chain.LastLinkID,
+	}
+}
+
 func (l *TeamLoader) Freeze(ctx context.Context, teamID keybase1.TeamID) (err error) {
 	defer l.G().CTraceTimed(ctx, fmt.Sprintf("TeamLoader#Freeze(%s)", teamID), func() error { return err })()
 	lock := l.locktab.AcquireOnName(ctx, l.G(), teamID.String())
 	defer lock.Release(ctx)
 	mctx := libkb.NewMetaContext(ctx, l.G())
-	td, frozen := l.storage.Get(mctx, teamID, teamID.IsPublic())
+	td, frozen, tombstoned := l.storage.Get(mctx, teamID, teamID.IsPublic())
 	if frozen || td == nil {
 		return nil
 	}
-	frozenChain := keybase1.TeamSigChainState{
-		Id:         td.Chain.Id,
-		Public:     td.Chain.Public,
-		LastSeqno:  td.Chain.LastSeqno,
-		LastLinkID: td.Chain.LastLinkID,
+	newTD := &keybase1.TeamData{
+		Frozen:     true,
+		Tombstoned: tombstoned,
+		Chain:      newFrozenChain(&td.Chain),
+	}
+	l.storage.Put(mctx, newTD)
+	return nil
+}
+
+func (l *TeamLoader) Tombstone(ctx context.Context, teamID keybase1.TeamID) (err error) {
+	defer l.G().CTraceTimed(ctx, fmt.Sprintf("TeamLoader#Freeze(%s)", teamID), func() error { return err })()
+	lock := l.locktab.AcquireOnName(ctx, l.G(), teamID.String())
+	defer lock.Release(ctx)
+	mctx := libkb.NewMetaContext(ctx, l.G())
+	td, frozen, tombstoned := l.storage.Get(mctx, teamID, teamID.IsPublic())
+	if tombstoned || td == nil {
+		return nil
 	}
 	newTD := &keybase1.TeamData{
-		Frozen: true,
-		Chain:  frozenChain,
+		Frozen:     frozen,
+		Tombstoned: true,
+		Chain:      newFrozenChain(&td.Chain),
 	}
 	l.storage.Put(mctx, newTD)
 	return nil
@@ -141,8 +163,8 @@ func (l *TeamLoader) HintLatestSeqno(ctx context.Context, teamID keybase1.TeamID
 	mctx := libkb.NewMetaContext(ctx, l.G())
 
 	// Load from the cache
-	td, frozen := l.storage.Get(mctx, teamID, teamID.IsPublic())
-	if frozen || td == nil {
+	td, frozen, tombstoned := l.storage.Get(mctx, teamID, teamID.IsPublic())
+	if frozen || tombstoned || td == nil {
 		// Nothing to store the hint on.
 		return nil
 	}
@@ -470,7 +492,11 @@ func (l *TeamLoader) load2InnerLockedRetry(ctx context.Context, arg load2ArgT) (
 
 	// Fetch from cache
 	tracer.Stage("cache load")
-	tailCheckRet, frozen := l.storage.Get(libkb.NewMetaContext(ctx, l.G()), arg.teamID, arg.public)
+	tailCheckRet, frozen, tombstoned := l.storage.Get(libkb.NewMetaContext(ctx, l.G()), arg.teamID, arg.public)
+	if tombstoned {
+		return nil, fmt.Errorf("team previously tombstoned; refusing to load")
+	}
+
 	var ret *keybase1.TeamData
 	if !frozen && !arg.forceFullReload {
 		// Load from cache

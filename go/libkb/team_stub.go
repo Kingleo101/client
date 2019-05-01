@@ -55,6 +55,10 @@ func (n nullTeamLoader) Freeze(context.Context, keybase1.TeamID) error {
 	return fmt.Errorf("null team loader")
 }
 
+func (n nullTeamLoader) Tombstone(context.Context, keybase1.TeamID) error {
+	return fmt.Errorf("null team loader")
+}
+
 func (n *nullTeamLoader) HintLatestSeqno(ctx context.Context, id keybase1.TeamID, seqno keybase1.Seqno) error {
 	return nil
 }
@@ -90,6 +94,10 @@ func (n nullFastTeamLoader) ForceRepollUntil(_ MetaContext, _ gregor.TimeOrOffse
 }
 
 func (n nullFastTeamLoader) Freeze(MetaContext, keybase1.TeamID) error {
+	return fmt.Errorf("null fast team loader")
+}
+
+func (n nullFastTeamLoader) Tombstone(MetaContext, keybase1.TeamID) error {
 	return fmt.Errorf("null fast team loader")
 }
 

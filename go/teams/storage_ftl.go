@@ -51,10 +51,10 @@ func (s *FTLStorage) Put(mctx libkb.MetaContext, state *keybase1.FastTeamData) {
 }
 
 // Can return nil.
-func (s *FTLStorage) Get(mctx libkb.MetaContext, teamID keybase1.TeamID, public bool) (data *keybase1.FastTeamData, frozen bool) {
+func (s *FTLStorage) Get(mctx libkb.MetaContext, teamID keybase1.TeamID, public bool) (data *keybase1.FastTeamData, frozen bool, tombstoned bool) {
 	vp := s.storageGeneric.get(mctx, teamID, public)
 	if vp == nil {
-		return nil, false
+		return nil, false, false
 	}
 	ret, ok := vp.(*keybase1.FastTeamData)
 	if !ok {
@@ -63,5 +63,8 @@ func (s *FTLStorage) Get(mctx libkb.MetaContext, teamID keybase1.TeamID, public 
 	if ret.Frozen {
 		mctx.Debug("returning frozen fast team data")
 	}
-	return ret, ret.Frozen
+	if ret.Tombstoned {
+		mctx.Debug("returning frozen fast team data")
+	}
+	return ret, ret.Frozen, ret.Tombstoned
 }

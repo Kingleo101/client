@@ -54,10 +54,10 @@ func (s *Storage) Put(mctx libkb.MetaContext, state *keybase1.TeamData) {
 }
 
 // Can return nil.
-func (s *Storage) Get(mctx libkb.MetaContext, teamID keybase1.TeamID, public bool) (data *keybase1.TeamData, frozen bool) {
+func (s *Storage) Get(mctx libkb.MetaContext, teamID keybase1.TeamID, public bool) (data *keybase1.TeamData, frozen bool, tombstoned bool) {
 	vp := s.storageGeneric.get(mctx, teamID, public)
 	if vp == nil {
-		return nil, false
+		return nil, false, false
 	}
 	ret, ok := vp.(*keybase1.TeamData)
 	if !ok {
@@ -66,5 +66,8 @@ func (s *Storage) Get(mctx libkb.MetaContext, teamID keybase1.TeamID, public boo
 	if ret.Frozen {
 		mctx.Debug("returning frozen team data")
 	}
-	return ret, ret.Frozen
+	if ret.Tombstoned {
+		mctx.Debug("returning tombstoned team data")
+	}
+	return ret, ret.Frozen, ret.Tombstoned
 }
