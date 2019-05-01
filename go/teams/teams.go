@@ -2095,3 +2095,15 @@ func UpgradeTLFIDToImpteam(ctx context.Context, g *libkb.GlobalContext, tlfName 
 	// Post the crypt keys
 	return team.AssociateWithTLFKeyset(ctx, tlfID, cryptKeys, appType)
 }
+
+func FreezeTeam(mctx libkb.MetaContext, teamID keybase1.TeamID) error {
+	err1 := mctx.G().GetTeamLoader().Freeze(mctx.Ctx(), teamID)
+	if err1 != nil {
+		mctx.Debug("error freezing in team cache: %v", err1)
+	}
+	err2 := mctx.G().GetFastTeamLoader().Freeze(mctx, teamID)
+	if err2 != nil {
+		mctx.Debug("error freezing in fast team cache: %v", err2)
+	}
+	return libkb.CombineErrors(err1, err2)
+}

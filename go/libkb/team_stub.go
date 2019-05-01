@@ -89,6 +89,10 @@ func (n nullFastTeamLoader) ForceRepollUntil(_ MetaContext, _ gregor.TimeOrOffse
 	return nil
 }
 
+func (n nullFastTeamLoader) Freeze(MetaContext, keybase1.TeamID) error {
+	return fmt.Errorf("null fast team loader")
+}
+
 func newNullFastTeamLoader() nullFastTeamLoader { return nullFastTeamLoader{} }
 
 type nullTeamAuditor struct{}
