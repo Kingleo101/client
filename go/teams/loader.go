@@ -494,7 +494,7 @@ func (l *TeamLoader) load2InnerLockedRetry(ctx context.Context, arg load2ArgT) (
 	tracer.Stage("cache load")
 	tailCheckRet, frozen, tombstoned := l.storage.Get(libkb.NewMetaContext(ctx, l.G()), arg.teamID, arg.public)
 	if tombstoned {
-		return nil, fmt.Errorf("team previously tombstoned; refusing to load")
+		return nil, NewTeamTombstonedError()
 	}
 
 	var ret *keybase1.TeamData

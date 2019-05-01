@@ -703,6 +703,8 @@ type FastTeamLoader interface {
 	ForceRepollUntil(m MetaContext, t gregor.TimeOrOffset) error
 	// See comment in TeamLoader#Freeze.
 	Freeze(MetaContext, keybase1.TeamID) error
+	// See comment in TeamLoader#Tombstone.
+	Tombstone(MetaContext, keybase1.TeamID) error
 }
 
 type TeamAuditor interface {

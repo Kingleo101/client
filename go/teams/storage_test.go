@@ -31,10 +31,10 @@ func TestStorageMem(t *testing.T) {
 			},
 		}
 
-		res, _ := st.Get(mctx, teamID, public)
+		res, _, _ := st.Get(mctx, teamID, public)
 		require.Nil(t, res)
 		st.Put(mctx, &obj)
-		res, _ = st.Get(mctx, teamID, public)
+		res, _, _ = st.Get(mctx, teamID, public)
 		require.NotNil(t, res, "cache miss")
 		require.True(t, res == &obj, "should be the same obj from mem")
 	}
@@ -57,12 +57,12 @@ func TestStorageDisk(t *testing.T) {
 			},
 		}
 
-		res, _ := st.Get(mctx, teamID, public)
+		res, _, _ := st.Get(mctx, teamID, public)
 		require.Nil(t, res)
 		st.Put(mctx, &obj)
 		t.Logf("throwing out mem storage")
 		st.mem.lru.Purge()
-		res, _ = st.Get(mctx, teamID, public)
+		res, _, _ = st.Get(mctx, teamID, public)
 		require.NotNil(t, res, "cache miss")
 		require.False(t, res == &obj, "should be the a different object read from disk")
 		require.Equal(t, teamID, res.Chain.Id)
@@ -87,7 +87,7 @@ func TestStorageLogout(t *testing.T) {
 		}
 		mctx := libkb.NewMetaContextForTest(tc)
 		st.Put(mctx, &obj)
-		res, _ := st.Get(mctx, teamID, public)
+		res, _, _ := st.Get(mctx, teamID, public)
 		require.NotNil(t, res, "cache miss")
 		require.True(t, res == &obj, "should be the same obj from mem")
 
@@ -96,14 +96,14 @@ func TestStorageLogout(t *testing.T) {
 
 		require.Equal(t, 0, st.mem.lru.Len(), "mem cache still populated")
 
-		res, _ = st.Get(mctx, teamID, public)
+		res, _, _ = st.Get(mctx, teamID, public)
 		require.Nil(t, res, "got from cache, but should be gone")
 
 		t.Logf("login as someone else")
 		_, err = kbtest.CreateAndSignupFakeUser("team", tc.G)
 		require.NoError(t, err)
 
-		res, _ = st.Get(mctx, teamID, public)
+		res, _, _ = st.Get(mctx, teamID, public)
 		require.Nil(t, res, "got from cache, but should be gone")
 	}
 }
@@ -131,7 +131,7 @@ func TestStorageUpdate(t *testing.T) {
 		st.Put(mctx, team)
 
 		t.Logf("get 1")
-		team, _ = st.Get(mctx, teamID, public)
+		team, _, _ = st.Get(mctx, teamID, public)
 		require.NotNil(t, team)
 
 		t.Logf("store updated")
@@ -143,7 +143,7 @@ func TestStorageUpdate(t *testing.T) {
 		require.True(t, newTime.Equal(team.CachedAt.Time()), "%v != %v", newTime, team.CachedAt.Time())
 
 		t.Logf("get updated")
-		team, _ = st.Get(mctx, teamID, public)
+		team, _, _ = st.Get(mctx, teamID, public)
 		require.NotNil(t, team)
 
 		require.True(t, newTime.Equal(team.CachedAt.Time()))

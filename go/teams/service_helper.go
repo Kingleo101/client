@@ -791,7 +791,7 @@ func Delete(ctx context.Context, g *libkb.GlobalContext, ui keybase1.TeamsUiInte
 			return err
 		}
 
-		FreezeTeam(libkb.NewMetaContext(ctx, g), t.ID)
+		TombstoneTeam(libkb.NewMetaContext(ctx, g), t.ID)
 
 		return nil
 	})

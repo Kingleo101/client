@@ -278,7 +278,7 @@ func HandleDeleteNotification(ctx context.Context, g *libkb.GlobalContext, rows 
 
 	for _, row := range rows {
 		g.Log.CDebugf(ctx, "team.HandleDeleteNotification: (%+v)", row)
-		FreezeTeam(libkb.NewMetaContext(ctx, g), row.Id)
+		TombstoneTeam(libkb.NewMetaContext(ctx, g), row.Id)
 		g.NotifyRouter.HandleTeamDeleted(ctx, row.Id)
 	}
 

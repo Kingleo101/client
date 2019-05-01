@@ -1221,7 +1221,7 @@ func (f *FastTeamChainLoader) loadLocked(m libkb.MetaContext, arg fastLoadArg) (
 	frozenState, frozen, tombstoned := f.findStateInCache(m, arg.ID)
 	var state *keybase1.FastTeamData
 	if tombstoned {
-		return nil, fmt.Errorf("team previously tombstoned; refusing to load")
+		return nil, NewTeamTombstonedError()
 	}
 	if !frozen {
 		state = frozenState
@@ -1321,6 +1321,14 @@ func (f *FastTeamChainLoader) InForceRepollMode(m libkb.MetaContext) bool {
 	return false
 }
 
+func newFrozenFastChain(chain *keybase1.FastTeamSigChainState) keybase1.FastTeamSigChainState {
+	return keybase1.FastTeamSigChainState{
+		ID:     chain.ID,
+		Public: chain.Public,
+		Last:   chain.Last,
+	}
+}
+
 func (f *FastTeamChainLoader) Freeze(mctx libkb.MetaContext, teamID keybase1.TeamID) (err error) {
 	defer mctx.TraceTimed(fmt.Sprintf("FastTeamChainLoader#Freeze(%s)", teamID), func() error { return err })()
 
@@ -1332,15 +1340,30 @@ func (f *FastTeamChainLoader) Freeze(mctx libkb.MetaContext, teamID keybase1.Tea
 	if frozen || td == nil {
 		return nil
 	}
-	frozenChain := keybase1.FastTeamSigChainState{
-		ID:     td.Chain.ID,
-		Public: td.Chain.Public,
-		Last:   td.Chain.Last,
-	}
 	newTD := &keybase1.FastTeamData{
 		Frozen:     true,
 		Tombstoned: tombstoned,
-		Chain:      frozenChain,
+		Chain:      newFrozenFastChain(&td.Chain),
+	}
+	f.storage.Put(mctx, newTD)
+	return nil
+}
+
+func (f *FastTeamChainLoader) Tombstone(mctx libkb.MetaContext, teamID keybase1.TeamID) (err error) {
+	defer mctx.TraceTimed(fmt.Sprintf("FastTeamChainLoader#Tombstone(%s)", teamID), func() error { return err })()
+
+	// Single-flight lock by team ID.
+	lock := f.locktab.AcquireOnName(mctx.Ctx(), mctx.G(), teamID.String())
+	defer lock.Release(mctx.Ctx())
+
+	td, frozen, tombstoned := f.storage.Get(mctx, teamID, teamID.IsPublic())
+	if tombstoned || td == nil {
+		return nil
+	}
+	newTD := &keybase1.FastTeamData{
+		Frozen:     frozen,
+		Tombstoned: true,
+		Chain:      newFrozenFastChain(&td.Chain),
 	}
 	f.storage.Put(mctx, newTD)
 	return nil
