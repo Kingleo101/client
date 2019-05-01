@@ -460,6 +460,10 @@
       "name": "FastTeamData",
       "fields": [
         {
+          "type": "boolean",
+          "name": "frozen"
+        },
+        {
           "type": "TeamName",
           "name": "name"
         },

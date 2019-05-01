@@ -142,13 +142,8 @@ protocol teams {
   // Snapshot of a loaded team.
   // If this is changed in incompatible way, increment teams/storage.go:diskStorageVersion
   record TeamData {
-    // Set when a team is deleted or when the user leaves the team.
-    // If set, the values of all the other members in this struct are not valid
-    // and may have been zeroed out, **EXCEPT for Chain.LastLinkID and
-    // Chain.LastSeqno** (to prevent the server serving a different chain next
-    // time).
-    // If set, will cause a force reload during team load so we don't
-    // accidentally load a team we're not in from cache.
+    // If set, all other members are invalid except for Chain.ID, Chain.Public,
+    // Chain.LastSeqno and Chain.LastLinkID.
     boolean frozen;
 
     // Whether this snapshot is entirely missing secrets.
@@ -186,6 +181,9 @@ protocol teams {
 
   // Snapshot of a fast-loaded team.
   record FastTeamData {
+    // If set, all other members are invalid except for Chain.ID, Chain.Public,
+    // and Chain.Last.
+    boolean frozen;
 
     // Name of the team. This is tricky.
     // The root ancestor, final part, and the depth are always correct.

@@ -629,6 +629,7 @@ func (o TeamData) DeepCopy() TeamData {
 }
 
 type FastTeamData struct {
+	Frozen                    bool                                                 `codec:"frozen" json:"frozen"`
 	Name                      TeamName                                             `codec:"name" json:"name"`
 	Chain                     FastTeamSigChainState                                `codec:"chain" json:"chain"`
 	PerTeamKeySeedsUnverified map[PerTeamKeyGeneration]PerTeamKeySeed              `codec:"perTeamKeySeeds" json:"perTeamKeySeedsUnverified"`
@@ -641,8 +642,9 @@ type FastTeamData struct {
 
 func (o FastTeamData) DeepCopy() FastTeamData {
 	return FastTeamData{
-		Name:  o.Name.DeepCopy(),
-		Chain: o.Chain.DeepCopy(),
+		Frozen: o.Frozen,
+		Name:   o.Name.DeepCopy(),
+		Chain:  o.Chain.DeepCopy(),
 		PerTeamKeySeedsUnverified: (func(x map[PerTeamKeyGeneration]PerTeamKeySeed) map[PerTeamKeyGeneration]PerTeamKeySeed {
 			if x == nil {
 				return nil

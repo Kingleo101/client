@@ -676,6 +676,12 @@ type TeamLoader interface {
 	MapTeamAncestors(ctx context.Context, f func(t keybase1.TeamSigChainState) error, teamID keybase1.TeamID, reason string, forceFullReloadOnceToAssert func(t keybase1.TeamSigChainState) bool) error
 	NotifyTeamRename(ctx context.Context, id keybase1.TeamID, newName string) error
 	Load(context.Context, keybase1.LoadTeamArg) (*keybase1.TeamData, error)
+	// Freezing a team clears most data and forces a full reload when the team
+	// is loaded again. The team loader checks that the previous tail is
+	// contained within the new chain post-freeze. In particular, since we load
+	// a team before deleting it in response to the server-driven delete gregor
+	// notifications, the server can't roll-back to a state where the team is
+	// undeleted, so we don't have to special-case team deletion.
 	Freeze(ctx context.Context, teamID keybase1.TeamID) error
 	// Untrusted hint of what a team's latest seqno is
 	HintLatestSeqno(ctx context.Context, id keybase1.TeamID, seqno keybase1.Seqno) error
