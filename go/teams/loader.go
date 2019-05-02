@@ -139,7 +139,7 @@ func (l *TeamLoader) Freeze(ctx context.Context, teamID keybase1.TeamID) (err er
 }
 
 func (l *TeamLoader) Tombstone(ctx context.Context, teamID keybase1.TeamID) (err error) {
-	defer l.G().CTraceTimed(ctx, fmt.Sprintf("TeamLoader#Freeze(%s)", teamID), func() error { return err })()
+	defer l.G().CTraceTimed(ctx, fmt.Sprintf("TeamLoader#Tombstone(%s)", teamID), func() error { return err })()
 	lock := l.locktab.AcquireOnName(ctx, l.G(), teamID.String())
 	defer lock.Release(ctx)
 	mctx := libkb.NewMetaContext(ctx, l.G())
